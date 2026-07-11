@@ -40,6 +40,32 @@ def load_jsonl(path: str) -> list[dict[str, Any]]:
         return [json.loads(line) for line in file if line.strip()]
 
 
+def body_of(row: dict[str, Any]) -> dict[str, Any]:
+    body = row.get("body")
+    return body if isinstance(body, dict) else {}
+
+
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def messages_of(row: dict[str, Any]) -> list[dict[str, Any]]:
+    messages = row.get("messages")
+    if messages is None:
+        messages = body_of(row).get("messages")
+    if not isinstance(messages, list):
+        raise ValueError("validation row is missing 'messages' or 'body.messages'")
+    return messages
+
+
+def row_id(row: dict[str, Any]) -> Any:
+    body = body_of(row)
+    return first_present(row.get("id"), body.get("id"), row.get("request_id"))
+
+
 def report_coverage(
     baseline_path: str, kept: set[int], tokenizer: Any
 ) -> float:
@@ -95,7 +121,7 @@ def main() -> None:
         raise ValueError(f"No validation requests found in {args.input}")
     prompt_ids = [
         tokenizer.apply_chat_template(
-            row["messages"], tokenize=True, add_generation_prompt=True
+            messages_of(row), tokenize=True, add_generation_prompt=True
         )
         for row in rows
     ]
@@ -136,7 +162,7 @@ def main() -> None:
             ):
                 eos_missing_count += 1
             record = {
-                "id": row.get("id"),
+                "id": row_id(row),
                 "identical": identical,
                 "baseline_token_ids": baseline_ids,
                 "restricted_token_ids": restricted_ids,

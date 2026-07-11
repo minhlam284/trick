@@ -31,12 +31,59 @@ def load_rows(path: str) -> list[dict[str, Any]]:
             if not line.strip():
                 continue
             row = json.loads(line)
-            if "messages" not in row:
-                raise ValueError(f"{path}:{line_number}: missing 'messages'")
+            messages_of(row, path, line_number)
             rows.append(row)
     if not rows:
         raise ValueError(f"No requests found in {path}")
     return rows
+
+
+def body_of(row: dict[str, Any]) -> dict[str, Any]:
+    body = row.get("body")
+    return body if isinstance(body, dict) else {}
+
+
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def messages_of(
+    row: dict[str, Any], path: str = "<row>", line_number: int = 0
+) -> list[dict[str, Any]]:
+    messages = row.get("messages")
+    if messages is None:
+        messages = body_of(row).get("messages")
+    if not isinstance(messages, list):
+        location = f"{path}:{line_number}" if line_number else path
+        raise ValueError(f"{location}: missing 'messages' or 'body.messages'")
+    return messages
+
+
+def row_id(row: dict[str, Any]) -> Any:
+    body = body_of(row)
+    return first_present(row.get("id"), body.get("id"), row.get("request_id"))
+
+
+def conversation_id(row: dict[str, Any]) -> Any:
+    body = body_of(row)
+    return first_present(row.get("conversation_id"), body.get("conversation_id"))
+
+
+def resolve_output_path(output: str | None, input_path: str, exploration: bool) -> Path:
+    suffix = "_exploration" if exploration else ""
+    input_stem = Path(input_path).stem
+    filename = f"{input_stem}{suffix}_tokens.jsonl"
+    if output is None:
+        return Path("vocab_trim/output") / filename
+    output_path = Path(output)
+    if output_path.exists() and output_path.is_dir():
+        return output_path / filename
+    if output_path.suffix == "":
+        return output_path / filename
+    return output_path
 
 
 def candidate_ids(logprobs: Any) -> list[int]:
@@ -49,17 +96,14 @@ def candidate_ids(logprobs: Any) -> list[int]:
 
 def main() -> None:
     args = parse_args()
-    if args.output is None:
-        suffix = "_exploration" if args.exploration else ""
-        input_stem = Path(args.input).stem
-        args.output = f"vocab_trim/output/{input_stem}{suffix}_tokens.jsonl"
+    output_path = resolve_output_path(args.output, args.input, args.exploration)
     rows = load_rows(args.input)
     tokenizer = AutoTokenizer.from_pretrained(
         args.model, trust_remote_code=True
     )
     prompt_token_ids = [
         tokenizer.apply_chat_template(
-            row["messages"], tokenize=True, add_generation_prompt=True
+            messages_of(row), tokenize=True, add_generation_prompt=True
         )
         for row in rows
     ]
@@ -85,7 +129,6 @@ def main() -> None:
         token_prompts, SamplingParams(**sampling_kwargs), use_tqdm=True
     )
 
-    output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as file:
         for row, prompt_ids, request_output in zip(
@@ -95,8 +138,8 @@ def main() -> None:
             # top-candidate tokens contribute to vocabulary construction.
             completions = request_output.outputs
             record = {
-                "id": row.get("id"),
-                "conversation_id": row.get("conversation_id"),
+                "id": row_id(row),
+                "conversation_id": conversation_id(row),
                 "prompt_token_ids": prompt_ids,
                 "output_token_ids": [
                     int(token_id)

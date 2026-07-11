@@ -6,9 +6,13 @@ from the repository root.
 
 ## Data contract
 
-Each non-empty line in `trace.jsonl` is JSON with an `id` (or
-`conversation_id`) and a vLLM/Transformers-compatible `messages` array. Never
-use validation generations to build a kept vocabulary.
+Each non-empty line in `trace.jsonl` can be either:
+
+- Flat chat JSON with `messages` plus `id` or `conversation_id`.
+- Trace-envelope JSON with `request_id` and chat payload under `body.messages`,
+  like the official workload traces.
+
+Never use validation generations to build a kept vocabulary.
 
 ## Reproducible run
 
@@ -20,6 +24,13 @@ mkdir -p vocab_trim/output
 # Calibration: greedy plus a separate exploration pass.
 python3 vocab_trim/02_collect_tokens.py
 python3 vocab_trim/02_collect_tokens.py --exploration
+
+# If --output points at a directory, the script writes
+# <input_stem>_tokens.jsonl inside that directory.
+python3 vocab_trim/02_collect_tokens.py \
+  --model /home/coder/data/vocab/qwen3.5 \
+  --input /home/coder/data/vocab/trick/vocab_trim/calibration.jsonl \
+  --output /home/coder/data/vocab/output
 
 # Build each candidate only from calibration artifacts.
 for k in 128000 96000 64000 32000; do

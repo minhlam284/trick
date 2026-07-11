@@ -31,6 +31,35 @@ def write_jsonl(path: str, rows: list[dict[str, Any]]) -> None:
             file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def body_of(row: dict[str, Any]) -> dict[str, Any]:
+    body = row.get("body")
+    return body if isinstance(body, dict) else {}
+
+
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def group_id_of(row: dict[str, Any], line_number: int, input_path: str) -> Any:
+    body = body_of(row)
+    group_id = first_present(
+        row.get("conversation_id"),
+        body.get("conversation_id"),
+        row.get("id"),
+        body.get("id"),
+        row.get("request_id"),
+        body.get("request_id"),
+    )
+    if group_id is None:
+        raise ValueError(
+            f"{input_path}:{line_number}: needs conversation_id, id, or request_id"
+        )
+    return group_id
+
+
 def main() -> None:
     args = parse_args()
     if not 0.0 < args.calibration_ratio < 1.0:
@@ -42,11 +71,7 @@ def main() -> None:
             if not line.strip():
                 continue
             row = json.loads(line)
-            group_id = row.get("conversation_id", row.get("id"))
-            if group_id is None:
-                raise ValueError(
-                    f"{args.input}:{line_number}: needs conversation_id or id"
-                )
+            group_id = group_id_of(row, line_number, args.input)
             groups[group_id].append(row)
     if len(groups) < 2:
         raise ValueError("At least two conversation groups are required")
