@@ -113,8 +113,11 @@ def main() -> None:
         )
         for row in rows
     ]
-    token_prompts = [
-        {"prompt_token_ids": ids} for ids in prompt_token_ids
+    prompts = [
+        tokenizer.apply_chat_template(
+            messages_of(row), tokenize=False, add_generation_prompt=True
+        )
+        for row in rows
     ]
 
     llm = LLM(
@@ -133,7 +136,7 @@ def main() -> None:
     if args.exploration:
         sampling_kwargs.update(n=4, top_p=0.95)
     outputs = llm.generate(
-        token_prompts, SamplingParams(**sampling_kwargs), use_tqdm=True
+        prompts, SamplingParams(**sampling_kwargs), use_tqdm=True
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -131,7 +131,12 @@ def main() -> None:
         )
         for row in rows
     ]
-    prompts = [{"prompt_token_ids": ids} for ids in prompt_ids]
+    prompts = [
+        tokenizer.apply_chat_template(
+            messages_of(row), tokenize=False, add_generation_prompt=True
+        )
+        for row in rows
+    ]
     llm = LLM(
         model=args.model,
         tensor_parallel_size=args.tensor_parallel_size,
