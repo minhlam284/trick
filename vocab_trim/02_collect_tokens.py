@@ -3,10 +3,14 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from transformers import AutoTokenizer
+
+os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
+
 from vllm import LLM, SamplingParams
 
 

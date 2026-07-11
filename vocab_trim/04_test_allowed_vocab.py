@@ -3,10 +3,14 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from transformers import AutoTokenizer
+
+os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
+
 from vllm import LLM, SamplingParams
 
 
@@ -17,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         "--input", default="vocab_trim/validation.jsonl"
     )
     parser.add_argument(
-        "--kept-ids", default="vocab_trim/output/kept_ids_64000.json"
+        "--kept-ids", default="vocab_trim/output/kept_ids_16000.json"
     )
     parser.add_argument(
         "--baseline-tokens",
@@ -26,6 +30,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output", default="vocab_trim/output/restricted_comparison.jsonl"
+    )
+    parser.add_argument(
+        "--coverage-report",
+        default="vocab_trim/output/coverage_report.json",
+        help="JSON report updated with validation coverage for this kept set.",
     )
     parser.add_argument("--coverage-only", action="store_true")
     parser.add_argument("--min-coverage", type=float, default=0.9999)
@@ -103,6 +112,29 @@ def report_coverage(
     return coverage
 
 
+def update_coverage_report(
+    report_path: str, kept_ids_path: str, coverage: float
+) -> None:
+    path = Path(report_path)
+    if path.exists():
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(report, dict):
+            raise ValueError("Coverage report must be a JSON object")
+    else:
+        report = {}
+    filename = Path(kept_ids_path).name
+    report[filename] = {
+        "validation_coverage": coverage,
+        "kept": len(json.loads(Path(kept_ids_path).read_text(encoding="utf-8"))),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print("Coverage report:", path)
+
+
 def main() -> None:
     args = parse_args()
     kept_ids = json.loads(Path(args.kept_ids).read_text(encoding="utf-8"))
@@ -120,6 +152,9 @@ def main() -> None:
     coverage = None
     if baseline_path.exists():
         coverage = report_coverage(str(baseline_path), kept, tokenizer)
+        update_coverage_report(
+            args.coverage_report, args.kept_ids, coverage
+        )
         print(
             "Accuracy gate:",
             "PASS" if coverage >= args.min_coverage else "FAIL",
