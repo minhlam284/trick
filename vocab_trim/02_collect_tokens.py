@@ -21,6 +21,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=256)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.90)
+    parser.add_argument(
+        "--gdn-prefill-backend",
+        choices=("auto", "triton", "flashinfer"),
+        default="auto",
+        help="Use triton to avoid FlashInfer GDN JIT when nvcc is unavailable.",
+    )
     return parser.parse_args()
 
 
@@ -116,6 +122,7 @@ def main() -> None:
         tensor_parallel_size=args.tensor_parallel_size,
         trust_remote_code=True,
         gpu_memory_utilization=args.gpu_memory_utilization,
+        gdn_prefill_backend=args.gdn_prefill_backend,
     )
     sampling_kwargs = {
         "temperature": 0.7 if args.exploration else 0.0,

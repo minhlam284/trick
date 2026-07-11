@@ -30,7 +30,8 @@ python3 vocab_trim/02_collect_tokens.py --exploration
 python3 vocab_trim/02_collect_tokens.py \
   --model /home/coder/data/vocab/qwen3.5 \
   --input /home/coder/data/vocab/trick/vocab_trim/calibration.jsonl \
-  --output /home/coder/data/vocab/output
+  --output /home/coder/data/vocab/output \
+  --gdn-prefill-backend triton
 
 # Build each candidate only from calibration artifacts.
 for k in 128000 96000 64000 32000; do
