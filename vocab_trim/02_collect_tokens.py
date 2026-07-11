@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--gdn-prefill-backend",
         choices=("auto", "triton", "flashinfer"),
-        default="auto",
+        default="triton",
         help="Use triton to avoid FlashInfer GDN JIT when nvcc is unavailable.",
     )
     return parser.parse_args()
