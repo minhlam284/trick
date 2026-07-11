@@ -100,6 +100,16 @@ def candidate_ids(logprobs: Any) -> list[int]:
     return ids
 
 
+def token_ids_from_template(encoded: Any) -> list[int]:
+    if isinstance(encoded, dict):
+        encoded = encoded.get("input_ids")
+    if hasattr(encoded, "input_ids"):
+        encoded = encoded.input_ids
+    if encoded and isinstance(encoded[0], list):
+        encoded = encoded[0]
+    return [int(token_id) for token_id in encoded]
+
+
 def main() -> None:
     args = parse_args()
     output_path = resolve_output_path(args.output, args.input, args.exploration)
@@ -107,12 +117,12 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(
         args.model, trust_remote_code=True
     )
-    prompt_token_ids = [
-        tokenizer.apply_chat_template(
+    prompt_token_ids = []
+    for row in rows:
+        encoded = tokenizer.apply_chat_template(
             messages_of(row), tokenize=True, add_generation_prompt=True
         )
-        for row in rows
-    ]
+        prompt_token_ids.append(token_ids_from_template(encoded))
     prompts = [
         tokenizer.apply_chat_template(
             messages_of(row), tokenize=False, add_generation_prompt=True

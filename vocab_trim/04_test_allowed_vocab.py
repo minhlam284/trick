@@ -72,6 +72,16 @@ def row_id(row: dict[str, Any]) -> Any:
     return first_present(row.get("id"), body.get("id"), row.get("request_id"))
 
 
+def token_ids_from_template(encoded: Any) -> list[int]:
+    if isinstance(encoded, dict):
+        encoded = encoded.get("input_ids")
+    if hasattr(encoded, "input_ids"):
+        encoded = encoded.input_ids
+    if encoded and isinstance(encoded[0], list):
+        encoded = encoded[0]
+    return [int(token_id) for token_id in encoded]
+
+
 def report_coverage(
     baseline_path: str, kept: set[int], tokenizer: Any
 ) -> float:
@@ -125,12 +135,12 @@ def main() -> None:
     rows = load_jsonl(args.input)
     if not rows:
         raise ValueError(f"No validation requests found in {args.input}")
-    prompt_ids = [
-        tokenizer.apply_chat_template(
+    prompt_ids = []
+    for row in rows:
+        encoded = tokenizer.apply_chat_template(
             messages_of(row), tokenize=True, add_generation_prompt=True
         )
-        for row in rows
-    ]
+        prompt_ids.append(token_ids_from_template(encoded))
     prompts = [
         tokenizer.apply_chat_template(
             messages_of(row), tokenize=False, add_generation_prompt=True
